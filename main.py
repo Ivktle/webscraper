@@ -260,8 +260,8 @@ def list_review(count_of_scroll):
     
 
 if __name__ == '__main__':
-    search_text='свечи ароматические'
-    count_of_scroll = 1000
+    search_text='сухой корм для кошек'
+    count_of_scroll = 10000
     count_of_page = 2
 
     login = 'user307032'
@@ -275,5 +275,5 @@ if __name__ == '__main__':
     }
 
 
-    list_sku(search_text,count_of_page,proxy)
-    #list_review(count_of_scroll)
+    #list_sku(search_text,count_of_page,proxy)
+    list_review(count_of_scroll)
