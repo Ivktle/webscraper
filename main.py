@@ -3,6 +3,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup as BS
 import pandas as pd
+from pandas import json_normalize
 import fake_useragent
 import time
 import requests as rq
@@ -16,23 +17,23 @@ def get_user_agent():
     return fake_useragent.UserAgent().random
 
 
-def do_search(driver, text_search):
+def do_search(driver, search_text_encode, page_num):
     '''
     поиск в строке поиска
     '''
-    
+    '''
     search_element = driver.find_element(
         By.ID, 
         'searchInput')
     search_element.clear()
     search_element.send_keys(text_search)
     search_element.send_keys(Keys.RETURN)
-    
-    url = 'https://www.wildberries.ru/catalog/0/search.aspx?page=1&sort=popular&search='+search_text
+    '''
+    url = 'https://www.wildberries.ru/catalog/0/search.aspx?page='+str(page_num)+'&sort=popular&search='+search_text_encode
     driver.get(url=url)
-
-
+    time.sleep(5)
     
+
     
 
 def get_json(url_search, search_text_encode, page_num, user_agent, proxy):
@@ -45,7 +46,7 @@ def get_json(url_search, search_text_encode, page_num, user_agent, proxy):
        'accept-language': 'ru',
        'origin': 'https://www.wildberries.ru',
        'priority': 'u=1, i',
-       'referer': 'https://www.wildberries.ru/catalog/0/search.aspx?page='+page_num+'&sort=popular&search='+search_text_encode,
+       'referer': 'https://www.wildberries.ru/catalog/0/search.aspx?page='+str(page_num)+'&sort=popular&search='+search_text_encode,
        'sec-ch-ua': 'Not(A:Brand";v="99", "Microsoft Edge";v="133", "Chromium";v="133',
        'sec-ch-ua-mobile': '?0',
        'sec-ch-ua-platform': 'Windows',
@@ -63,6 +64,7 @@ def get_json(url_search, search_text_encode, page_num, user_agent, proxy):
 def prepare_items(response):
     '''
     подготовка данных из json
+    return список со словарями
     '''
     products = []
     products_raw = response.get('products', None)
@@ -102,6 +104,9 @@ def scroll_website(count_of_scroll, driver):
         last_height = new_height
 
 def button_reviews_this_item(driver):
+    '''
+    Нажать на кнопку Этот вариант товара на листе с отзывами
+    '''
     search_div = driver.find_elements(By.CLASS_NAME, 'product-feedbacks__title')
     max_index=len(search_div)
     search_div[max_index-1].click()
@@ -180,51 +185,54 @@ def get_review(driver, url_review, count_of_scroll, id):
     
 
 def list_sku(search_text,count_of_page,proxy):
+    '''
+    основаная функция для получения списка скю
+    '''
 
     #окно EDGE
     user_agent = get_user_agent()
     options = webdriver.EdgeOptions()
     options.add_argument(f"user-agent={user_agent}")
-    #options.add_experimental_option("detach", True)
+    
     driver = webdriver.Edge(options=options)
     driver.maximize_window()
 
-    #страница
-    url = "https://www.wildberries.ru/"
-    driver.get(url=url)
-    time.sleep(10)
+
+    products = []
+
     
-    products=[]
+    search_text_encode = quote(search_text)
+    
 
     for page_num in range(1,count_of_page+1):
 
+        
         #поиск товаров
-        do_search(driver, search_text, page_num) 
-        time.sleep(5)
-
-        #scroll_website(2,driver)
+        do_search(driver, search_text_encode, page_num) 
 
         #поиск api со списком товаров
         for request in driver.requests:
+            
             a = request.url.find("search.wb.ru")
             b = request.url.find("page")
             if request.response and a!=-1 and b!=-1:
                 url_search = request.url
-        
+                
         #получить из api список товаров
-        search_text_encode = quote(search_text)
         response = get_json(url_search, search_text_encode, page_num, user_agent, proxy)
-        products_temp = prepare_items(response)
-        products.append(products_temp)
+        products += prepare_items(response)
+        
+        
 
     #сохранить
-    print(products)
-    pd.DataFrame(products).to_csv('C:/Users/Oktyabrina/Desktop/project1/product.csv', index=False)
+    pd.DataFrame(products).to_csv('C:/Users/Oktyabrina/Desktop/webscraper/data/product.csv', index=False)
 
     
 
-def list_review(count_of_scroll,proxy):
-
+def list_review(count_of_scroll):
+    '''
+    Основная функция для получения комменатриев
+    '''
     #окно EDGE
     user_agent = get_user_agent()
     options = webdriver.EdgeOptions()
@@ -234,7 +242,7 @@ def list_review(count_of_scroll,proxy):
     driver.maximize_window()
 
     #список скю из csv
-    df = pd.read_csv('C:/Users/Oktyabrina/Desktop/project1/product.csv')
+    df = pd.read_csv('C:/Users/Oktyabrina/Desktop/webscraper/data/product.csv')
 
     #получить комментарии
     data_rev = [[]]
@@ -247,13 +255,13 @@ def list_review(count_of_scroll,proxy):
     #датафрейм комментариев
     df_review = pd.DataFrame(data=data_rev, columns=['Автор','Статус заказа', 'Дата отзыва', 'Кол-во звезд', 'Текст отзыва', 'Артикул'] )
     
-    pd.DataFrame(df_review).to_csv('C:/Users/Oktyabrina/Desktop/project1/review.csv', index=False)
+    pd.DataFrame(df_review).to_csv('C:/Users/Oktyabrina/Desktop/webscraper/data/review.csv', index=False)
 
-    print(df_review)
+    
 
 if __name__ == '__main__':
     search_text='свечи ароматические'
-    count_of_scroll = 100
+    count_of_scroll = 1000
     count_of_page = 2
 
     login = 'user307032'
@@ -268,4 +276,4 @@ if __name__ == '__main__':
 
 
     list_sku(search_text,count_of_page,proxy)
-    #list_review(count_of_scroll,proxy)
+    #list_review(count_of_scroll)
